@@ -36,20 +36,10 @@ O caminho recomendado continua sendo a raiz do repositório. Ainda assim, `clien
 
 1. Crie um registro `A` chamado `api` apontando para o IPv4 público da VPS, com proxy laranja ativo.
 2. Em **SSL/TLS**, escolha **Full (strict)**.
-3. Em **Origin Server**, gere um certificado Origin CA que cubra `api.seraquefake.pedrooreis.me`.
-4. Na VPS, grave certificado e chave fora do projeto:
-
-   ```bash
-   sudo install -d -m 750 -o root -g caddy /etc/ssl/cloudflare
-   sudoedit /etc/ssl/cloudflare/seraquefake-origin.pem
-   sudoedit /etc/ssl/cloudflare/seraquefake-origin.key
-   sudo chown root:caddy /etc/ssl/cloudflare/seraquefake-origin.*
-   sudo chmod 640 /etc/ssl/cloudflare/seraquefake-origin.*
-   ```
-
-5. Em **Network**, confirme **WebSockets: On**. O plano gratuito suporta WebSockets, mas uma atualização da rede Cloudflare pode derrubar uma conexão; o cliente já reconecta e reassume a sala.
-6. Em **SSL/TLS → Edge Certificates**, ative **Always Use HTTPS**. Este manual expõe somente a porta 443 da origem; sem esse redirecionamento no edge, acessos iniciados em HTTP podem falhar.
-7. Em **Cache Rules**, crie uma regra para o host `api.seraquefake.pedrooreis.me` com **Cache eligibility: Bypass cache**. Assim `/api/*`, o polling e o handshake `/socket.io/*` nunca herdam uma futura regra “cache everything”.
+3. Em **Origin Server**, gere um certificado Origin CA que cubra `api.seraquefake.pedrooreis.me`. Guarde o certificado e a chave para a etapa 4; o grupo Linux `caddy` ainda não existe em uma VPS nova.
+4. Em **Network**, confirme **WebSockets: On**. O plano gratuito suporta WebSockets, mas uma atualização da rede Cloudflare pode derrubar uma conexão; o cliente já reconecta e reassume a sala.
+5. Em **SSL/TLS → Edge Certificates**, ative **Always Use HTTPS**. Este manual expõe somente a porta 443 da origem; sem esse redirecionamento no edge, acessos iniciados em HTTP podem falhar.
+6. Em **Cache Rules**, crie uma regra para o host `api.seraquefake.pedrooreis.me` com **Cache eligibility: Bypass cache**. Assim `/api/*`, o polling e o handshake `/socket.io/*` nunca herdam uma futura regra “cache everything”.
 
 O Origin CA é apropriado porque o host `api` permanece com proxy laranja. Um acesso direto ao IP não terá certificado confiável no navegador — isso é esperado e desejável nesta arquitetura.
 
@@ -71,7 +61,20 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update
 sudo apt install -y caddy
+getent group caddy
 ```
+
+O último comando deve mostrar o grupo `caddy`. Só agora instale o certificado Origin CA e a chave gerados na etapa anterior:
+
+```bash
+sudo install -d -m 750 -o root -g caddy /etc/ssl/cloudflare
+sudoedit /etc/ssl/cloudflare/seraquefake-origin.pem
+sudoedit /etc/ssl/cloudflare/seraquefake-origin.key
+sudo chown root:caddy /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/seraquefake-origin.key
+sudo chmod 640 /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/seraquefake-origin.key
+```
+
+Cole o certificado público completo no arquivo `.pem` e a chave privada completa no arquivo `.key`. Não grave esses conteúdos no repositório e não os envie por chat.
 
 Instale Node.js 24 LTS pelo repositório NodeSource depois de revisar o script baixado:
 
@@ -177,6 +180,27 @@ curl --fail http://127.0.0.1:3000/api/healthz
 bash deploy/scripts/smoke-test.sh
 ```
 
+### Se a Cloudflare responder com erro 522
+
+O erro 522 significa que a Cloudflare não conseguiu estabelecer ou manter a conexão TCP com a origem. Confirme, nesta ordem:
+
+```bash
+sudo systemctl status --no-pager caddy isabel
+sudo ss -ltnp | grep -E ':(443|3000)\b'
+curl --fail http://127.0.0.1:3000/api/healthz
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo ufw status numbered
+sudo journalctl -u caddy -u isabel -n 100 --no-pager
+```
+
+- `127.0.0.1:3000` deve responder antes de investigar a Cloudflare.
+- O Caddy deve escutar em `:443` e conseguir ler os dois arquivos em `/etc/ssl/cloudflare`.
+- O registro `api` deve apontar para o IPv4 público atual da VPS.
+- Todas as faixas oficiais da Cloudflare precisam estar liberadas para TCP/443 no UFW e em qualquer firewall adicional do provedor da VPS.
+- Em **SSL/TLS → Edge Certificates**, confirme que o certificado de borda está **Active**; em **Overview**, mantenha **Full (strict)**.
+
+Depois das correções, teste novamente `https://api.seraquefake.pedrooreis.me/api/healthz`. Não mude para **Flexible** para mascarar falhas: isso remove a validação TLS da origem e não resolve um 522.
+
 ## 8. Logs e operação
 
 - API: `journalctl -u isabel -f`.
@@ -242,5 +266,6 @@ Para efetivar a publicação, o operador precisa autorizar acesso ao projeto Ver
 - [Vite como SPA na Vercel](https://vercel.com/docs/frameworks/frontend/vite) e [configuração de build](https://vercel.com/docs/builds/configure-a-build).
 - [Node.js 24 na Vercel](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
 - [Cloudflare Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/), [Origin CA](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/) e [Always Use HTTPS](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/always-use-https/).
+- [Diagnóstico oficial do erro 522](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522/) e [status do certificado de borda](https://developers.cloudflare.com/ssl/reference/certificate-statuses/).
 - [WebSockets na Cloudflare](https://developers.cloudflare.com/network/websockets/) e [Cache Rules com bypass](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/).
 - [Reverse proxy e WebSockets no Caddy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy).
