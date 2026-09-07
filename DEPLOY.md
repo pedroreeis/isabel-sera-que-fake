@@ -28,6 +28,10 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
 
 Os valores presentes em `vercel.json` prevalecem sobre overrides conflitantes do painel. A reescrita para `index.html` é a configuração oficial para deep links de uma SPA Vite. Previews da Vercel não terão acesso ao servidor por padrão: para testar um preview contra a API, inclua **a origem exata** daquele preview em `CLIENT_ORIGINS`, separada por vírgula, e reinicie a API. Não use `*` com cookies administrativos.
 
+### Projeto antigo configurado com raiz `client`
+
+O caminho recomendado continua sendo a raiz do repositório. Ainda assim, `client/vercel.json` espelha a saída `dist`, o fallback da SPA e os cabeçalhos de produção para que um projeto Vercel já criado com **Root Directory = `client`** também publique corretamente. Depois do deploy, `/superadmin` deve responder com a mesma SPA; um `404 NOT_FOUND` nessa rota indica que o deployment promovido ainda não leu uma das duas configurações.
+
 ## 3. DNS e TLS da API no Cloudflare
 
 1. Crie um registro `A` chamado `api` apontando para o IPv4 público da VPS, com proxy laranja ativo.
