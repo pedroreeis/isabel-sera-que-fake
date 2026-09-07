@@ -5,7 +5,7 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
 ## 1. Visão da implantação
 
 - `seraquefake.pedrooreis.me`: SPA React/Vite na Vercel, sem proxy Cloudflare.
-- `api.seraquefake.pedrooreis.me`: Cloudflare com proxy ativo → Caddy na VPS → Node em `127.0.0.1:3000`.
+- `api-seraquefake.pedrooreis.me`: Cloudflare Tunnel → `cloudflared` na VPS → Node em `127.0.0.1:3000`.
 - Estado durável: `/var/lib/isabel/isabel.sqlite`, em WAL.
 - Backups: `/var/backups/isabel`, um por dia, retenção de sete dias.
 - Processo único: Socket.IO + SQLite. Para múltiplos processos, será obrigatório adicionar Redis antes de escalar horizontalmente.
@@ -18,7 +18,7 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
 4. Cadastre a variável no ambiente **Production**:
 
    ```text
-   VITE_API_URL=https://api.seraquefake.pedrooreis.me
+   VITE_API_URL=https://api-seraquefake.pedrooreis.me
    ```
 
 5. Adicione `seraquefake.pedrooreis.me` em **Settings → Domains** e copie o destino DNS exibido pela Vercel.
@@ -34,23 +34,18 @@ O caminho recomendado continua sendo a raiz do repositório. Ainda assim, `clien
 
 ## 3. DNS e TLS da API no Cloudflare
 
-> **Atenção ao nome do host:** se a zona adicionada ao Cloudflare for `pedrooreis.me`, o certificado Universal gratuito cobre `pedrooreis.me` e `*.pedrooreis.me`, mas não cobre um segundo nível como `api.seraquefake.pedrooreis.me`. Nesse caso, escolha uma destas opções antes de publicar:
->
-> - sem custo adicional (recomendado): use um host de primeiro nível, por exemplo `api-seraquefake.pedrooreis.me`, e substitua o endereço da API na variável da Vercel, no `CLIENT_ORIGINS`/Caddy, no certificado Origin CA e nos testes deste guia;
-> - mantendo `api.seraquefake.pedrooreis.me`: contrate o Advanced Certificate Manager e emita um certificado de borda para esse host, ou envie ao Cloudflare um certificado público próprio que o cubra.
->
-> Um certificado **Origin CA** protege apenas o trecho Cloudflare → VPS. Ele não corrige a ausência do certificado de borda que o navegador recebe. Um alerta `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` ou `handshake failure` antes de qualquer resposta HTTP é sinal típico dessa cobertura ausente.
+Esta implantação usa **Cloudflare Tunnel**. A conexão nasce da VPS para a Cloudflare, portanto não exige abrir as portas 80, 443 ou 3000 no Oracle Cloud. O certificado HTTPS público e os WebSockets são tratados pela própria Cloudflare.
 
-1. Crie um registro `A` chamado `api` apontando para o IPv4 público da VPS, com proxy laranja ativo.
-2. Em **SSL/TLS**, escolha **Full (strict)**.
-3. Em **Origin Server**, gere um certificado Origin CA que cubra `api.seraquefake.pedrooreis.me`. Guarde o certificado e a chave para a etapa 4; o grupo Linux `caddy` ainda não existe em uma VPS nova.
-4. Em **Network**, confirme **WebSockets: On**. O plano gratuito suporta WebSockets, mas uma atualização da rede Cloudflare pode derrubar uma conexão; o cliente já reconecta e reassume a sala.
-5. Em **SSL/TLS → Edge Certificates**, ative **Always Use HTTPS**. Este manual expõe somente a porta 443 da origem; sem esse redirecionamento no edge, acessos iniciados em HTTP podem falhar.
-6. Em **Cache Rules**, crie uma regra para o host `api.seraquefake.pedrooreis.me` com **Cache eligibility: Bypass cache**. Assim `/api/*`, o polling e o handshake `/socket.io/*` nunca herdam uma futura regra “cache everything”.
+1. No painel da conta Cloudflare, abra **Networking → Tunnels** e crie um túnel chamado `isabel-api-production`.
+2. Escolha Debian, instale o pacote `cloudflared` pela instrução oficial exibida e execute o comando **Install as service**. O token é secreto: não o salve no repositório nem cole em chats.
+3. Aguarde o estado **Healthy**. Em **Routes → Add route → Published application**, configure:
+   - subdomínio: `api-seraquefake`;
+   - domínio: `pedrooreis.me`;
+   - serviço: `http://127.0.0.1:3000`.
+4. O painel criará automaticamente um CNAME para o túnel. Não crie um registro `A` para essa rota.
+5. Em **Network**, mantenha **WebSockets: On**. Em regras de cache, deixe `/api/*` e `/socket.io/*` sem cache.
 
-Se a VPS estiver na Oracle Cloud, abra também a porta TCP/443 no firewall da rede da instância. No Console OCI, confira tanto o **Network Security Group (NSG)** ligado à VNIC quanto **VCN → Subnets → Security Lists**; uma regra no UFW não substitui essa liberação externa. Use como origens os [intervalos IP oficiais do Cloudflare](https://www.cloudflare.com/ips/), não a internet inteira. Sem essa regra, o Caddy pode funcionar localmente e o Cloudflare ainda responderá `522`.
-
-O Origin CA é apropriado porque o host `api` permanece com proxy laranja. Um acesso direto ao IP não terá certificado confiável no navegador — isso é esperado e desejável nesta arquitetura.
+O host usa apenas um nível abaixo de `pedrooreis.me`, ficando coberto pelo certificado Universal gratuito. Um nome como `api.seraquefake.pedrooreis.me` exigiria cobertura TLS adicional e não deve ser usado nesta instalação.
 
 ## 4. Preparar a VPS
 
@@ -62,28 +57,18 @@ sudo apt upgrade -y
 sudo apt install -y ca-certificates curl git gpg sqlite3 ufw build-essential python3 xz-utils debian-keyring debian-archive-keyring apt-transport-https
 ```
 
-Instale o pacote estável oficial do Caddy para Debian/Ubuntu:
+Instale o `cloudflared` pelo repositório oficial:
 
 ```bash
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
+sudo install -d -m 0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
 sudo apt update
-sudo apt install -y caddy
-getent group caddy
+sudo apt install -y cloudflared
+cloudflared --version
 ```
 
-O último comando deve mostrar o grupo `caddy`. Só agora instale o certificado Origin CA e a chave gerados na etapa anterior:
-
-```bash
-sudo install -d -m 750 -o root -g caddy /etc/ssl/cloudflare
-sudoedit /etc/ssl/cloudflare/seraquefake-origin.pem
-sudoedit /etc/ssl/cloudflare/seraquefake-origin.key
-sudo chown root:caddy /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/seraquefake-origin.key
-sudo chmod 640 /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/seraquefake-origin.key
-```
-
-Cole o certificado público completo no arquivo `.pem` e a chave privada completa no arquivo `.key`. Não grave esses conteúdos no repositório e não os envie por chat.
+Depois, volte ao painel do túnel e execute o comando **Install as service** mostrado ali. Confirme com `systemctl is-enabled cloudflared` e `systemctl is-active cloudflared`; ambos devem responder positivamente.
 
 Instale o Node.js 24 LTS oficial de forma isolada em `/opt/node24`. Isso evita trocar o `/usr/bin/node` de aplicações preexistentes administradas por PM2. A versão abaixo foi conferida no momento deste guia; ao atualizá-la, baixe novamente o `SHASUMS256.txt` correspondente:
 
@@ -107,13 +92,9 @@ sudo adduser --system --group --home /var/lib/isabel isabel
 sudo install -d -m 750 -o isabel -g isabel /var/lib/isabel /var/backups/isabel
 sudo install -d -m 755 -o "$USER" -g "$USER" /opt/isabel/releases
 sudo install -d -m 750 -o root -g isabel /etc/isabel
-sudo install -d -m 750 -o caddy -g caddy /var/log/caddy
-sudo touch /var/log/caddy/isabel-api.log
-sudo chown caddy:caddy /var/log/caddy/isabel-api.log
-sudo chmod 640 /var/log/caddy/isabel-api.log
 ```
 
-Firewall mínimo; a porta 3000 nunca deve ficar pública. Antes de ativar o UFW em uma VPS compartilhada, liste os serviços existentes e documente quais portas realmente precisam continuar públicas. Libere o SSH antes de qualquer ativação para não perder o acesso:
+Firewall mínimo: a porta 3000 nunca deve ficar pública. O túnel precisa apenas de saída para a internet. Antes de ativar o UFW em uma VPS compartilhada, liste os serviços existentes e preserve explicitamente as portas das outras aplicações:
 
 ```bash
 sudo ss -ltnp
@@ -121,22 +102,11 @@ pm2 list
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow OpenSSH
-```
-
-Restrinja a porta 443 aos intervalos oficiais da Cloudflare. Isso é obrigatório nesta configuração porque o Caddy confia no cabeçalho `CF-Connecting-IP` para preservar o IP real no rate limit. Consulte sempre as listas atuais antes de executar:
-
-```bash
-curl -fsS https://www.cloudflare.com/ips-v4 -o /tmp/cloudflare-ips-v4
-curl -fsS https://www.cloudflare.com/ips-v6 -o /tmp/cloudflare-ips-v6
-while IFS= read -r cidr; do sudo ufw allow proto tcp from "$cidr" to any port 443; done < /tmp/cloudflare-ips-v4
-while IFS= read -r cidr; do sudo ufw allow proto tcp from "$cidr" to any port 443; done < /tmp/cloudflare-ips-v6
 sudo ufw enable
 sudo ufw status numbered
 ```
 
-Se a máquina já hospeda outros projetos, adicione **antes do `ufw enable`** somente as regras necessárias para eles. Não copie portas de exemplo e não exponha MariaDB, PM2 ou a porta 3000 por conveniência. Em uma VPS já em produção, prefira agendar essa ativação com uma segunda sessão SSH aberta para recuperação; o deploy da Isabel não deve derrubar serviços preexistentes.
-
-A Cloudflare publica alterações antes de usar novas faixas; revise `https://www.cloudflare.com/ips/` periodicamente e reaplique a lista quando ela mudar. Restrinja também o SSH ao seu IP sempre que houver endereço fixo. O certificado Origin CA não substitui a regra de firewall: ele criptografa o enlace, mas não impede sozinho acesso direto ao IP da origem. Se **Always Use HTTPS** não puder ser ativado para toda a zona, libere também a porta 80 apenas para os intervalos Cloudflare e deixe o Caddy redirecionar; não abra 80 para a internet inteira.
+Se a máquina já hospeda outros projetos, adicione **antes do `ufw enable`** somente as regras necessárias para eles. Não exponha MariaDB, PM2 ou a porta 3000. Em uma VPS já em produção, mantenha uma segunda sessão SSH aberta ao ativar o firewall para evitar perda de acesso.
 
 ## 5. Instalar uma release
 
@@ -180,57 +150,52 @@ sudo ln -sfn "/opt/isabel/releases/$release_id" /opt/isabel/current
 
 Não use aspas no hash do arquivo `EnvironmentFile`. O caractere `$` é aceito literalmente pelo systemd nesse formato.
 
+Se a senha for esquecida, gere um novo hash com o mesmo procedimento, substitua somente `ADMIN_PASSWORD_HASH` em `/etc/isabel/isabel.env` e reinicie `isabel.service`. Na instalação atual, a senha inicial também pode ser consultada localmente na VPS com `sudo cat /root/isabel-admin-initial-password`; depois de guardá-la em um gerenciador de senhas, remova esse arquivo com `sudo shred -u /root/isabel-admin-initial-password`.
+
 Mantenha `HOST=127.0.0.1`. Depois de iniciar o serviço, `sudo ss -ltnp | grep ':3000'` deve mostrar `127.0.0.1:3000`, nunca `*:3000` ou `0.0.0.0:3000`.
 
-## 7. Ativar Caddy, API e backup
+## 7. Ativar túnel, API e backup
 
 ```bash
-sudo cp /opt/isabel/current/deploy/Caddyfile /etc/caddy/Caddyfile
 sudo cp /opt/isabel/current/deploy/isabel.service /etc/systemd/system/isabel.service
 sudo cp /opt/isabel/current/deploy/isabel-backup.service /etc/systemd/system/isabel-backup.service
 sudo cp /opt/isabel/current/deploy/isabel-backup.timer /etc/systemd/system/isabel-backup.timer
-sudo -u caddy caddy validate --config /etc/caddy/Caddyfile
 sudo systemd-analyze verify /etc/systemd/system/isabel.service /etc/systemd/system/isabel-backup.service /etc/systemd/system/isabel-backup.timer
 sudo systemctl daemon-reload
-sudo systemctl enable --now caddy isabel.service isabel-backup.timer
-sudo systemctl reload caddy
+sudo systemctl enable --now cloudflared isabel.service isabel-backup.timer
 ```
 
 Valide a configuração antes de considerar o imóvel entregue:
 
 ```bash
-systemctl status --no-pager isabel caddy isabel-backup.timer
+systemctl status --no-pager isabel cloudflared isabel-backup.timer
 curl --fail http://127.0.0.1:3000/api/healthz
 bash deploy/scripts/smoke-test.sh
 ```
 
-### Se a Cloudflare responder com erro 522
+### Se o endereço público não responder
 
-O erro 522 significa que a Cloudflare não conseguiu estabelecer ou manter a conexão TCP com a origem. Confirme, nesta ordem:
+Confirme, nesta ordem:
 
 ```bash
-sudo systemctl status --no-pager caddy isabel
-sudo ss -ltnp | grep -E ':(443|3000)\b'
+sudo systemctl status --no-pager cloudflared isabel
+sudo ss -ltnp | grep -E ':3000\b'
 curl --fail http://127.0.0.1:3000/api/healthz
-sudo caddy validate --config /etc/caddy/Caddyfile
 sudo ufw status numbered
-sudo journalctl -u caddy -u isabel -n 100 --no-pager
+sudo journalctl -u cloudflared -u isabel -n 100 --no-pager
 ```
 
 - `127.0.0.1:3000` deve responder antes de investigar a Cloudflare.
-- O Caddy deve escutar em `:443` e conseguir ler os dois arquivos em `/etc/ssl/cloudflare`.
-- O registro `api` deve apontar para o IPv4 público atual da VPS.
-- Todas as faixas oficiais da Cloudflare precisam estar liberadas para TCP/443 no UFW e em qualquer firewall adicional do provedor da VPS.
-- Em Oracle Cloud, confirme a mesma liberação no NSG e/ou na Security List da subnet; um timeout ao acessar diretamente o IP nas portas 80/443 confirma que o bloqueio ocorre antes do sistema operacional.
-- Em **SSL/TLS → Edge Certificates**, confirme que o certificado de borda está **Active**; em **Overview**, mantenha **Full (strict)**.
-- Se a conexão falhar no handshake TLS sem chegar a exibir um código HTTP, confira primeiro se o hostname tem dois níveis abaixo da zona e se existe um certificado de borda que o cubra.
+- O túnel deve aparecer como **Healthy**, com uma réplica ativa.
+- A rota publicada deve apontar `api-seraquefake.pedrooreis.me` para `http://127.0.0.1:3000`.
+- O serviço não depende de portas 80/443 liberadas no Oracle Cloud; não altere o NSG apenas para o túnel.
 
-Depois das correções, teste novamente `https://api.seraquefake.pedrooreis.me/api/healthz`. Não mude para **Flexible** para mascarar falhas: isso remove a validação TLS da origem e não resolve um 522.
+Depois das correções, teste novamente `https://api-seraquefake.pedrooreis.me/api/healthz`.
 
 ## 8. Logs e operação
 
 - API: `journalctl -u isabel -f`.
-- Caddy: `/var/log/caddy/isabel-api.log` e `journalctl -u caddy`.
+- Túnel: `journalctl -u cloudflared -f`.
 - Backup manual: `sudo systemctl start isabel-backup.service`.
 - Lista dos timers: `systemctl list-timers isabel-backup.timer`.
 - Estado da sala é salvo após voto, alimentação e mudança de fase. Ao reiniciar, prazos vencidos são recalculados.
@@ -248,7 +213,7 @@ sudo -u isabel sqlite3 /var/lib/isabel/isabel-restaurado.sqlite 'PRAGMA integrit
 sudo rm -f /var/lib/isabel/isabel.sqlite-wal /var/lib/isabel/isabel.sqlite-shm
 sudo -u isabel mv /var/lib/isabel/isabel-restaurado.sqlite /var/lib/isabel/isabel.sqlite
 sudo systemctl start isabel
-curl --fail https://api.seraquefake.pedrooreis.me/api/healthz
+curl --fail https://api-seraquefake.pedrooreis.me/api/healthz
 ```
 
 ## 9. Atualização e rollback
@@ -291,8 +256,7 @@ Para efetivar a publicação, o operador precisa autorizar acesso ao projeto Ver
 
 - [Vite como SPA na Vercel](https://vercel.com/docs/frameworks/frontend/vite) e [configuração de build](https://vercel.com/docs/builds/configure-a-build).
 - [Node.js 24 na Vercel](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
-- [Cloudflare Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/), [Origin CA](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/) e [Always Use HTTPS](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/always-use-https/).
+- [Criar e executar um Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/) e [rotas publicadas](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/).
 - [Cobertura e limitações do Universal SSL](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/).
-- [Diagnóstico oficial do erro 522](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522/) e [status do certificado de borda](https://developers.cloudflare.com/ssl/reference/certificate-statuses/).
+- [Status do certificado de borda](https://developers.cloudflare.com/ssl/reference/certificate-statuses/).
 - [WebSockets na Cloudflare](https://developers.cloudflare.com/network/websockets/) e [Cache Rules com bypass](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/).
-- [Reverse proxy e WebSockets no Caddy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy).

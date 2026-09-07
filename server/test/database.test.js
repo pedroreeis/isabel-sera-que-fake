@@ -30,6 +30,11 @@ test('database persists facts, snapshots, sessions, imports, and audit entries',
   assert.equal(database.seedFacts([fact]), 1);
   assert.equal(database.seedFacts([fact]), 0);
   assert.equal(database.getPlayableFacts()[0].id, fact.id);
+  assert.deepEqual(database.getShownClassicFactIds(), []);
+  assert.equal(database.markClassicFactShown(fact.id), 1);
+  assert.deepEqual(database.getShownClassicFactIds(), [fact.id]);
+  assert.equal(database.resetClassicFactCycle(), 1);
+  assert.deepEqual(database.getShownClassicFactIds(), []);
 
   const created = database.createFact({ ...fact, id: 'draft-fact', reviewStatus: 'pending', active: false });
   assert.equal(created.active, false);

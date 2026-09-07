@@ -78,6 +78,68 @@ test('solo classic always plays all ten rounds and reveals results only at the f
   assert.equal(result.leaderboard[0].correctCount, 10);
 });
 
+test('classic facts stay unique across matches and reset only after the catalog is exhausted', () => {
+  let time = 2_000_000;
+  const catalog = makeFacts(15);
+  const shownIds = new Set();
+  let resetCount = 0;
+  const room = new GameRoom({
+    factsProvider: () => catalog,
+    shownFactIdsProvider: () => [...shownIds],
+    markFactShown: (factId) => shownIds.add(factId),
+    resetShownFacts: () => {
+      shownIds.clear();
+      resetCount += 1;
+    },
+    now: () => time,
+  });
+  const player = room.join({ nickname: 'Ciclo completo' });
+  const played = [];
+
+  const playMatch = () => {
+    room.start(player.playerId);
+    time += 3_000;
+    room.sweep();
+    for (let round = 0; round < 10; round += 1) {
+      played.push(room.state.game.currentFact.id);
+      room.answer(player.playerId, {
+        roundId: room.state.game.currentRoundId,
+        answer: room.state.game.currentFact.verdict,
+      });
+      if (round < 9) {
+        time += 1_800;
+        room.sweep();
+      }
+    }
+  };
+
+  playMatch();
+  room.restart(player.playerId);
+  playMatch();
+
+  assert.equal(new Set(played.slice(0, 15)).size, 15);
+  assert.equal(resetCount, 1);
+  assert.equal(new Set(played.slice(10, 20)).size, 10);
+});
+
+test('leaving a two-player community match cancels it for the remaining player', () => {
+  let time = 3_000_000;
+  const room = new GameRoom({ now: () => time });
+  const host = room.join({ nickname: 'Host da galera' });
+  const guest = room.join({ nickname: 'Convidado' });
+  room.updateSettings(host.playerId, { mode: 'community', timerSeconds: 15, roundLimit: 10 });
+  room.start(host.playerId);
+  room.submitCommunityFacts(host.playerId, { facts: [communityFact(1), communityFact(2)] });
+  room.submitCommunityFacts(guest.playerId, { facts: [communityFact(3), communityFact(4)] });
+  assert.equal(room.phase, 'countdown');
+
+  room.leave(guest.playerId);
+
+  assert.equal(room.phase, 'lobby');
+  assert.equal(room.state.game, null);
+  assert.equal(room.project(host.playerId).notice.code, 'COMMUNITY_CANCELLED');
+});
+
 test('a late join receives a waiting seat and cannot answer the active match', () => {
   const { room } = setupClassic({ playerCount: 2 });
   const late = room.join({ nickname: 'Pessoa atrasada' });

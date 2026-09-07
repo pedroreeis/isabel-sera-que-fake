@@ -1,4 +1,15 @@
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
+const LEGACY_API_URL = "https://api.seraquefake.pedrooreis.me";
+const DEFAULT_API_URL = import.meta.env.PROD
+  ? "https://api-seraquefake.pedrooreis.me"
+  : "http://localhost:3000";
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const configuredUrlIsProductionSafe = !import.meta.env.PROD
+  || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiUrl || "");
+const API_URL = (
+  configuredApiUrl && configuredApiUrl !== LEGACY_API_URL && configuredUrlIsProductionSafe
+    ? configuredApiUrl
+    : DEFAULT_API_URL
+).replace(/\/$/, "");
 
 let csrfToken = "";
 

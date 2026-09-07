@@ -10,7 +10,7 @@ Jogo multijogador de fatos, blefes e boas risadas para 1–8 pessoas. O placar f
 - Pontuação por acerto, rapidez e streak; desempate por tempo médio e encerramento por liderança inalcançável.
 - Superadmin protegido para pesquisar, editar, duplicar, arquivar, importar, exportar e auditar o catálogo.
 - Interface mobile-first, seis poses otimizadas da Isabel, animações reduzíveis e card social.
-- SQLite em WAL, snapshots da sala, backup diário e arquivos de produção para Vercel, Cloudflare, Caddy e systemd.
+- SQLite em WAL, snapshots da sala, backup diário e arquivos de produção para Vercel, Cloudflare Tunnel e systemd.
 
 ## Desenvolvimento local
 
@@ -37,7 +37,7 @@ npm run build
 - `server/`: Express, Socket.IO, SQLite, sala e superadmin na VPS.
 - `shared/`: contratos Zod e regras puras compartilhadas.
 - `server/data/facts.seed.json`: catálogo inicial versionado.
-- `deploy/`: Caddy, systemd, backup, smoke test e arquivos de ambiente.
+- `deploy/`: systemd, backup, smoke test, arquivos de ambiente e Caddy opcional.
 - `DEPLOY.md`: manual operacional completo em português.
 
 ## Segurança e privacidade
@@ -48,4 +48,4 @@ Os 100 fatos iniciais estão ativos e marcados como `pending`, conforme a premis
 
 ## Produção
 
-O frontend está preparado para `seraquefake.pedrooreis.me` e a API para `api.seraquefake.pedrooreis.me`. Siga [DEPLOY.md](./DEPLOY.md) para DNS, TLS, serviço, backups, atualização e rollback.
+O frontend está preparado para `seraquefake.pedrooreis.me` e a API para `api-seraquefake.pedrooreis.me`, publicada por Cloudflare Tunnel sem expor a porta 3000. Siga [DEPLOY.md](./DEPLOY.md) para DNS, TLS, serviço, backups, atualização e rollback.

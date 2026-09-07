@@ -87,9 +87,20 @@ function publicPlayer(player, state) {
 }
 
 export class GameRoom {
-  constructor({ roomId = ROOM_ID, snapshot = null, factsProvider = () => [], now = () => Date.now() } = {}) {
+  constructor({
+    roomId = ROOM_ID,
+    snapshot = null,
+    factsProvider = () => [],
+    shownFactIdsProvider = () => [],
+    markFactShown = () => {},
+    resetShownFacts = () => {},
+    now = () => Date.now(),
+  } = {}) {
     this.now = now;
     this.factsProvider = factsProvider;
+    this.shownFactIdsProvider = shownFactIdsProvider;
+    this.markFactShown = markFactShown;
+    this.resetShownFacts = resetShownFacts;
     this.roomId = roomId;
     this.state = snapshot ? structuredClone(snapshot) : initialState(this.now(), roomId);
     if (!this.state.phaseId) this.state.phaseId = randomUUID();
@@ -233,8 +244,11 @@ export class GameRoom {
       delete this.state.players[playerId];
     }
     this.transferHostIfNeeded(true);
-    if (this.state.phase === 'question' && this.allEligibleAnswered()) this.completeRound('all_answered');
-    if (this.state.phase === 'collecting') this.afterContestantRemoved();
+    if (this.state.game?.mode === 'community' && this.state.phase !== 'finished') {
+      this.afterContestantRemoved();
+    } else if (this.state.phase === 'question' && this.allEligibleAnswered()) {
+      this.completeRound('all_answered');
+    }
     this.touch();
   }
 
@@ -422,24 +436,40 @@ export class GameRoom {
     }
     let fact;
     if (game.mode === 'classic') {
+      const catalog = this.factsProvider();
+      const playableIds = new Set(
+        catalog
+          .filter((candidate) => candidate.active && candidate.reviewStatus !== 'archived')
+          .map((candidate) => candidate.id),
+      );
+      let shownIds = new Set(
+        this.shownFactIdsProvider().filter((id) => playableIds.has(id)),
+      );
+      if (playableIds.size > 0 && shownIds.size >= playableIds.size) {
+        this.resetShownFacts();
+        shownIds = new Set();
+      }
       const recentRounds = game.history.slice(-2);
       const recentAnswers = recentRounds.flatMap((round) => round.answers.filter((answer) => !answer.excluded));
       const recentCorrect = recentAnswers.filter((answer) => answer.correct).length;
-      fact = chooseAdaptiveFact(
-        this.factsProvider(),
-        {
-          completedRounds: game.history.length,
-          totalRounds: game.totalRounds,
-          recentCorrectRate: recentAnswers.length ? recentCorrect / recentAnswers.length : 0,
-          currentDifficulty: game.difficultyLevel,
-          selectedFacts: game.history.map((round) => round.fact),
-        },
-        new Set(game.usedFactIds),
-      );
+      const selectionContext = {
+        completedRounds: game.history.length,
+        totalRounds: game.totalRounds,
+        recentCorrectRate: recentAnswers.length ? recentCorrect / recentAnswers.length : 0,
+        currentDifficulty: game.difficultyLevel,
+        selectedFacts: game.history.map((round) => round.fact),
+      };
+      const unavailableIds = new Set([...shownIds, ...game.usedFactIds]);
+      fact = chooseAdaptiveFact(catalog, selectionContext, unavailableIds);
+      if (!fact && shownIds.size > 0) {
+        this.resetShownFacts();
+        fact = chooseAdaptiveFact(catalog, selectionContext, new Set(game.usedFactIds));
+      }
       if (!fact) {
         this.finish('content_exhausted');
         return;
       }
+      this.markFactShown(fact.id);
       game.difficultyLevel = fact.difficulty;
     } else {
       fact = game.communityQueue.shift();

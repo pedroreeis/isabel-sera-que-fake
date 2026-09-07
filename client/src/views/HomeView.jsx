@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowRight, History, LockKeyhole, Sparkles, Users } from "lucide-react";
 import { motion } from "motion/react";
 import Brand from "../components/Brand.jsx";
@@ -8,6 +9,15 @@ import { storage } from "../lib/storage.js";
 export default function HomeView({ onJoin, busy, lastReport, onOpenReport }) {
   const [nickname, setNickname] = useState(storage.getProfile()?.username || "");
   const [error, setError] = useState("");
+  const adminClicks = useRef(0);
+  const navigate = useNavigate();
+
+  function unlockAdmin() {
+    adminClicks.current += 1;
+    if (adminClicks.current < 13) return;
+    adminClicks.current = 0;
+    navigate("/superadmin");
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -64,7 +74,9 @@ export default function HomeView({ onJoin, busy, lastReport, onOpenReport }) {
           <Sparkles size={18} />
           <span>Preparado para duvidar de tudo?</span>
         </motion.div>
-        <Isabel pose="saudacao" priority className="hero-isabel" alt="Isabel sorrindo, acenando e segurando uma caneta" />
+        <button type="button" className="isabel-easter-egg" onClick={unlockAdmin} aria-label="Ilustração da Isabel">
+          <Isabel pose="saudacao" priority className="hero-isabel" alt="Isabel sorrindo, acenando e segurando uma caneta" />
+        </button>
         <div className="stage-shadow" />
       </section>
     </main>

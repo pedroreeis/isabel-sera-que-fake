@@ -26,6 +26,9 @@ export class GameCoordinator {
       roomId: ROOM_ID,
       snapshot: database.loadRoom(ROOM_ID),
       factsProvider: () => database.getPlayableFacts(),
+      shownFactIdsProvider: () => database.getShownClassicFactIds(),
+      markFactShown: (factId) => database.markClassicFactShown(factId),
+      resetShownFacts: () => database.resetClassicFactCycle(),
       now,
     });
     this.rooms = new Map([[ROOM_ID, mainRoom]]);

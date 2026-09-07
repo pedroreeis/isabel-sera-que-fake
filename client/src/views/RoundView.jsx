@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock3, LockKeyhole, Sparkles } from "lucide-react";
+import { Check, Clock3, LockKeyhole, LogOut, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import Isabel from "../components/Isabel.jsx";
 import PlayerList from "../components/PlayerList.jsx";
@@ -17,7 +17,7 @@ function useCountdown(deadlineAt, serverNow, receivedAt) {
   return remainingMs;
 }
 
-export default function RoundView({ snapshot, round: eventRound, onCommand, setToast }) {
+export default function RoundView({ snapshot, round: eventRound, onCommand, onLeave, setToast }) {
   const current = eventRound || snapshot.game?.currentRound || snapshot.game || {};
   const roundNumber = current.number || snapshot.game?.roundNumber || 1;
   const total = current.total || snapshot.game?.totalRounds || snapshot.settings?.effectiveRoundLimit || snapshot.settings?.roundLimit || 10;
@@ -62,7 +62,10 @@ export default function RoundView({ snapshot, round: eventRound, onCommand, setT
       <header className="round-topbar">
         <div className="round-label"><span>Rodada</span><strong>{roundNumber}<small>/{total}</small></strong></div>
         <div className={`timer-orb ${urgent ? "urgent" : ""}`} aria-live="polite"><Clock3 size={18} /><strong>{seconds}</strong><span>s</span></div>
-        <div className="sealed-score"><LockKeyhole size={16} /><span>Placar lacrado</span></div>
+        <div className="round-topbar-actions">
+          <div className="sealed-score"><LockKeyhole size={16} /><span>Placar lacrado</span></div>
+          <button type="button" className="icon-button game-leave-button" onClick={onLeave} aria-label="Sair da partida" title="Sair da partida"><LogOut size={18} /></button>
+        </div>
       </header>
       <div className="time-track" aria-hidden="true"><motion.span animate={{ scaleX: progress }} transition={{ ease: "linear", duration: 0.1 }} /></div>
 

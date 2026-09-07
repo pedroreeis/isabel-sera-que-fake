@@ -1,4 +1,4 @@
-api.seraquefake.pedrooreis.me {
+api-seraquefake.pedrooreis.me {
   tls /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/seraquefake-origin.key
 
   encode zstd gzip

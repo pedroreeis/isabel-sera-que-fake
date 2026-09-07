@@ -64,11 +64,11 @@ function GameApp() {
   } else if (["FEEDING_INITIAL", "FEEDING_REFILL", "collecting"].includes(snapshot.phase)) {
     view = <FeedingView snapshot={snapshot} onCommand={game.command} onLeave={game.leave} setToast={showToast} />;
   } else if (["ROUND_OPEN", "question"].includes(snapshot.phase)) {
-    view = <RoundView snapshot={snapshot} round={game.round} onCommand={game.command} setToast={showToast} />;
+    view = <RoundView snapshot={snapshot} round={game.round} onCommand={game.command} onLeave={game.leave} setToast={showToast} />;
   } else if (["FINISHED", "finished"].includes(snapshot.phase)) {
     view = <FinishedView snapshot={snapshot} report={game.report || snapshot.report} onCommand={game.command} onLeave={game.leave} setToast={showToast} />;
   } else {
-    view = <TransitionView snapshot={snapshot} />;
+    view = <TransitionView snapshot={snapshot} onLeave={game.leave} />;
   }
 
   return <>{view}<Toast toast={toast} onClose={() => setToast(null)} />{["reconnecting", "offline"].includes(game.status) && <div className="connection-ribbon">Reconectando à sala…</div>}</>;

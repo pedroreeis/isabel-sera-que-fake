@@ -93,6 +93,11 @@ export class IsabelDatabase {
       );
       CREATE INDEX IF NOT EXISTS fact_sources_fact_idx ON fact_sources (fact_id);
 
+      CREATE TABLE IF NOT EXISTS classic_fact_exposure (
+        fact_id TEXT PRIMARY KEY REFERENCES facts(id) ON DELETE CASCADE,
+        shown_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS room_snapshots (
         room_id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL,
@@ -162,6 +167,24 @@ export class IsabelDatabase {
       .prepare("SELECT * FROM facts WHERE active = 1 AND review_status != 'archived' ORDER BY difficulty, id")
       .all()
       .map(rowToFact);
+  }
+
+  getShownClassicFactIds() {
+    return this.sqlite
+      .prepare('SELECT fact_id FROM classic_fact_exposure')
+      .all()
+      .map(({ fact_id: factId }) => factId);
+  }
+
+  markClassicFactShown(factId) {
+    return this.sqlite.prepare(`
+      INSERT INTO classic_fact_exposure (fact_id, shown_at) VALUES (?, ?)
+      ON CONFLICT(fact_id) DO UPDATE SET shown_at = excluded.shown_at
+    `).run(factId, new Date().toISOString()).changes;
+  }
+
+  resetClassicFactCycle() {
+    return this.sqlite.prepare('DELETE FROM classic_fact_exposure').run().changes;
   }
 
   getFact(id) {
