@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Archive, Check, ChevronLeft, ChevronRight, Copy, Download, Edit3, Eye, FileUp, LogOut, Plus, Save, Search, ShieldCheck, Sparkles, X } from "lucide-react";
 import Brand from "../components/Brand.jsx";
 import Isabel from "../components/Isabel.jsx";
@@ -39,12 +39,19 @@ export default function AdminView() {
   const [toast, setToast] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
   const fileInput = useRef(null);
+  const toastTimerRef = useRef(null);
 
   const showToast = useCallback((next) => {
     setToast(next);
-    window.clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(() => setToast(null), 4200);
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 4200);
   }, []);
+
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [session.authenticated]);
 
   const loadData = useCallback(async (nextFilters = filters) => {
     const query = new URLSearchParams(Object.entries(nextFilters).filter(([, value]) => value !== "" && value != null));
@@ -226,11 +233,11 @@ export default function AdminView() {
 
         <section className="catalog-panel panel-card">
           <div className="catalog-toolbar">
-            <label className="search-field"><Search size={17} /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} onKeyDown={(event) => event.key === "Enter" && applyFilters({ search: event.currentTarget.value })} placeholder="Buscar no catálogo" /></label>
-            <select value={filters.category} onChange={(event) => applyFilters({ category: event.target.value })}><option value="">Todas as categorias</option>{CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}</select>
-            <select value={filters.difficulty} onChange={(event) => applyFilters({ difficulty: event.target.value })}><option value="">Toda dificuldade</option>{[1,2,3,4,5].map((level) => <option key={level} value={level}>Nível {level}</option>)}</select>
-            <select value={filters.verdict} onChange={(event) => applyFilters({ verdict: event.target.value })}><option value="">Fato e fake</option><option value="true">Verdadeiro</option><option value="false">Falso</option></select>
-            <select value={filters.reviewStatus} onChange={(event) => applyFilters({ reviewStatus: event.target.value })}><option value="">Toda auditoria</option><option value="pending">Pendente</option><option value="verified">Auditado</option></select>
+            <label className="search-field"><Search size={17} /><input aria-label="Buscar no catálogo" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} onKeyDown={(event) => event.key === "Enter" && applyFilters({ search: event.currentTarget.value })} placeholder="Buscar no catálogo" /></label>
+            <select aria-label="Filtrar por categoria" value={filters.category} onChange={(event) => applyFilters({ category: event.target.value })}><option value="">Todas as categorias</option>{CATEGORIES.map((category) => <option key={category} value={category}>{CATEGORY_LABELS[category]}</option>)}</select>
+            <select aria-label="Filtrar por dificuldade" value={filters.difficulty} onChange={(event) => applyFilters({ difficulty: event.target.value })}><option value="">Toda dificuldade</option>{[1,2,3,4,5].map((level) => <option key={level} value={level}>Nível {level}</option>)}</select>
+            <select aria-label="Filtrar por resposta" value={filters.verdict} onChange={(event) => applyFilters({ verdict: event.target.value })}><option value="">Fato e fake</option><option value="true">Verdadeiro</option><option value="false">Falso</option></select>
+            <select aria-label="Filtrar por auditoria" value={filters.reviewStatus} onChange={(event) => applyFilters({ reviewStatus: event.target.value })}><option value="">Toda auditoria</option><option value="pending">Pendente</option><option value="verified">Auditado</option></select>
           </div>
 
           <div className="catalog-table">

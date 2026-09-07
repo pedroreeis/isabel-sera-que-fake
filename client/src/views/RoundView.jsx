@@ -58,7 +58,7 @@ export default function RoundView({ snapshot, round: eventRound, onCommand, setT
   }
 
   return (
-    <main className={`round-page ${urgent ? "is-urgent" : ""}`}>
+    <main className={`round-page ${urgent ? "is-urgent" : ""} ${!isAuthor && !locked ? "has-mobile-vote-dock" : ""}`}>
       <header className="round-topbar">
         <div className="round-label"><span>Rodada</span><strong>{roundNumber}<small>/{total}</small></strong></div>
         <div className={`timer-orb ${urgent ? "urgent" : ""}`} aria-live="polite"><Clock3 size={18} /><strong>{seconds}</strong><span>s</span></div>
@@ -84,7 +84,7 @@ export default function RoundView({ snapshot, round: eventRound, onCommand, setT
               <p>Este fato é seu. Observe a galera votar — sua pontuação e seu streak ficam pausados.</p>
             </div>
           ) : !locked ? (
-            <div className="vote-card panel-card">
+            <div className="vote-card desktop-vote-card panel-card">
               <span className="eyebrow">Qual é seu palpite?</span>
               <h2>Decida antes do tempo acabar</h2>
               <div className="vote-buttons">
@@ -107,6 +107,20 @@ export default function RoundView({ snapshot, round: eventRound, onCommand, setT
           </div>
         </aside>
       </div>
+
+      {!isAuthor && !locked && (
+        <section className="mobile-vote-dock" aria-label="Escolha sua resposta">
+          <div className="mobile-vote-actions">
+            <button type="button" className="vote-button true" onClick={() => vote(true)} disabled={busy || remainingMs <= 0} aria-label="Votar É fato">
+              <span className="vote-symbol">V</span><strong>É fato</strong>
+            </button>
+            <button type="button" className="vote-button false" onClick={() => vote(false)} disabled={busy || remainingMs <= 0} aria-label="Votar É fake">
+              <span className="vote-symbol">F</span><strong>É fake</strong>
+            </button>
+          </div>
+          <p><LockKeyhole size={13} /> Seu primeiro voto fica lacrado</p>
+        </section>
+      )}
     </main>
   );
 }

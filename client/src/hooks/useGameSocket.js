@@ -68,20 +68,30 @@ export function useGameSocket() {
     socket.on("room:snapshot", acceptSnapshot);
     socket.on("round:opened", (payload) => {
       setRound(payload.round || payload);
-      setSnapshot((current) => current ? {
-        ...current,
-        phase: "ROUND_OPEN",
-        version: payload.version ?? current.version,
-        gameId: payload.gameId ?? current.gameId,
-        phaseId: payload.phaseId ?? current.phaseId,
-        serverNow: payload.serverNow ?? current.serverNow,
-        __receivedAt: Date.now(),
-      } : current);
+      setSnapshot((current) => {
+        if (!current) return current;
+        const next = {
+          ...current,
+          phase: "ROUND_OPEN",
+          version: payload.version ?? current.version,
+          gameId: payload.gameId ?? current.gameId,
+          phaseId: payload.phaseId ?? current.phaseId,
+          serverNow: payload.serverNow ?? current.serverNow,
+          __receivedAt: Date.now(),
+        };
+        snapshotRef.current = next;
+        return next;
+      });
     });
     socket.on("game:finished", (payload) => {
       setReport(payload);
       storage.setLastReport(payload);
-      setSnapshot((current) => current ? { ...current, phase: "FINISHED", version: payload.version ?? current.version, gameId: payload.gameId ?? current.gameId, phaseId: payload.phaseId ?? current.phaseId } : current);
+      setSnapshot((current) => {
+        if (!current) return current;
+        const next = { ...current, phase: "FINISHED", version: payload.version ?? current.version, gameId: payload.gameId ?? current.gameId, phaseId: payload.phaseId ?? current.phaseId };
+        snapshotRef.current = next;
+        return next;
+      });
     });
     socket.on("phase:changed", (payload) => payload.snapshot ? acceptSnapshot(payload.snapshot) : null);
     socket.on("host:changed", (payload) => payload.snapshot ? acceptSnapshot(payload.snapshot) : null);

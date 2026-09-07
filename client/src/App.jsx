@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Toast from "./components/Toast.jsx";
 import { useGameSocket } from "./hooks/useGameSocket.js";
@@ -18,11 +18,12 @@ function GameApp() {
   const [joining, setJoining] = useState(false);
   const [toast, setToast] = useState(null);
   const [archivedReport, setArchivedReport] = useState(null);
+  const toastTimerRef = useRef(null);
 
   function showToast(next) {
     setToast(next);
-    window.clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(() => setToast(null), 4200);
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 4200);
   }
 
   async function join(nickname) {
@@ -35,6 +36,12 @@ function GameApp() {
   useEffect(() => {
     if (game.status === "reconnecting") showToast({ type: "info", message: "A conexão oscilou. A Isabel está reconectando você…" });
   }, [game.status]);
+
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [game.snapshot?.phase, archivedReport]);
 
   if (archivedReport && !game.snapshot) {
     return <FinishedView report={archivedReport} archived onCloseArchive={() => setArchivedReport(null)} />;
@@ -51,11 +58,11 @@ function GameApp() {
   const player = snapshot.players?.find((entry) => entry.id === snapshot.self?.playerId);
   let view;
   if (player?.waitingForNextGame || snapshot.phase === "WAITING") {
-    view = <WaitingView onLeave={game.leave} />;
+    view = <WaitingView snapshot={snapshot} onCommand={game.command} onLeave={game.leave} setToast={showToast} />;
   } else if (snapshot.phase === "LOBBY" || snapshot.phase === "lobby") {
     view = <LobbyView snapshot={snapshot} onCommand={game.command} onLeave={game.leave} setToast={showToast} />;
   } else if (["FEEDING_INITIAL", "FEEDING_REFILL", "collecting"].includes(snapshot.phase)) {
-    view = <FeedingView snapshot={snapshot} onCommand={game.command} setToast={showToast} />;
+    view = <FeedingView snapshot={snapshot} onCommand={game.command} onLeave={game.leave} setToast={showToast} />;
   } else if (["ROUND_OPEN", "question"].includes(snapshot.phase)) {
     view = <RoundView snapshot={snapshot} round={game.round} onCommand={game.command} setToast={showToast} />;
   } else if (["FINISHED", "finished"].includes(snapshot.phase)) {

@@ -42,7 +42,6 @@ export default function HomeView({ onJoin, busy, lastReport, onOpenReport }) {
               placeholder="Seu nome ou apelido"
               autoComplete="nickname"
               maxLength={20}
-              autoFocus
               aria-describedby={error ? "nickname-error" : undefined}
             />
             <button className="primary-button" type="submit" disabled={busy}>

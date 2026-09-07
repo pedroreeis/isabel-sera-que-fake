@@ -42,7 +42,7 @@ export default function FinishedView({ snapshot, report, onCommand, onLeave, set
         <div className="winner-copy">
           <span className="eyebrow"><Sparkles size={15} /> O placar foi aberto</span>
           <h1>{winners.length > 1 ? "Temos campeões!" : "Temos um campeão!"}</h1>
-          <p>{winners.length ? winners.map((winner) => winner.nickname).join(" e ") : "A turma toda"} {winners.length > 1 ? "enganaram" : "enganou"} a dúvida e chegaram ao topo.</p>
+          <p>{winners.length ? winners.map((winner) => winner.nickname).join(" e ") : "A turma toda"} {winners.length > 1 ? "venceram a dúvida e chegaram" : "venceu a dúvida e chegou"} ao topo.</p>
           {report?.reason === "unreachable_lead" && <div className="sealed-chip"><Crown size={16} /> Liderança matematicamente inalcançável</div>}
         </div>
         <Isabel pose="comemorando" className="winner-isabel" alt="Isabel comemorando com confetes" />
@@ -99,7 +99,7 @@ export default function FinishedView({ snapshot, report, onCommand, onLeave, set
                       <div className="answer-table-head"><span>Jogador</span><span>Voto</span><span>Tempo</span><span>Pontos</span></div>
                       {(item.answers || []).map((answer) => {
                         const player = leaderboard.find((entry) => entry.playerId === answer.playerId);
-                        return <div className="answer-table-row" key={answer.playerId}><strong>{player?.nickname || answer.nickname || "Jogador"}</strong><span>{answer.isAuthor ? "Autor" : answerLabel(answer.answer)}</span><span>{answer.isAuthor ? "—" : formatMs(answer.responseMs)}</span><span className={`answer-points ${answer.correct ? "positive" : ""}`}><strong>{answer.points || 0}</strong>{answer.correct && <small>+{answer.speedBonus || 0} rápido · +{answer.streakBonus || 0} streak</small>}</span></div>;
+                        return <div className="answer-table-row" key={answer.playerId}><strong className="answer-player">{player?.nickname || answer.nickname || "Jogador"}</strong><span className="answer-vote">{answer.isAuthor ? "Autor" : answerLabel(answer.answer)}</span><span className="answer-time">{answer.isAuthor ? "—" : formatMs(answer.responseMs)}</span><span className={`answer-points ${answer.correct ? "positive" : ""}`}><strong>{answer.points || 0}</strong>{answer.correct && <small>+{answer.speedBonus || 0} rápido · +{answer.streakBonus || 0} streak</small>}</span></div>;
                       })}
                     </div>
                   </div>

@@ -15,6 +15,8 @@ api.seraquefake.pedrooreis.me {
     # A regra de firewall do guia garante que este cabeçalho só chegue pela Cloudflare.
     header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
     header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+    # Evita uma onda de reconexões simultâneas quando o Caddy é recarregado.
+    stream_close_delay 5m
   }
 
   log {

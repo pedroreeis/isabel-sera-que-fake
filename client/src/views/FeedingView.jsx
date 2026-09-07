@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Feather, Plus, Send, Trash2, UserMinus } from "lucide-react";
+import { Check, Feather, LogOut, Plus, Send, UserMinus } from "lucide-react";
 import { motion } from "motion/react";
 import Brand from "../components/Brand.jsx";
 import Isabel from "../components/Isabel.jsx";
@@ -8,7 +8,7 @@ function emptyFact() {
   return { statement: "", verdict: true, explanation: "" };
 }
 
-export default function FeedingView({ snapshot, onCommand, setToast }) {
+export default function FeedingView({ snapshot, onCommand, onLeave, setToast }) {
   const game = snapshot.game || {};
   const self = snapshot.self || {};
   const players = snapshot.players || [];
@@ -65,7 +65,7 @@ export default function FeedingView({ snapshot, onCommand, setToast }) {
 
   return (
     <main className="app-shell feeding-page">
-      <header className="topbar"><Brand compact /><div className="room-pill"><Feather size={15} /> Fatos da Galera</div></header>
+      <header className="topbar"><Brand compact /><div className="feeding-topbar-actions"><div className="room-pill"><Feather size={15} /> Fatos da Galera</div><button type="button" className="icon-button feeding-leave" onClick={onLeave} aria-label="Sair da sala" title="Sair da sala"><LogOut size={18} /></button></div></header>
       <div className="feeding-header">
         <div>
           <span className="eyebrow">{snapshot.phase === "FEEDING_INITIAL" ? "Antes de começar" : "Hora de recarregar"}</span>
@@ -74,6 +74,11 @@ export default function FeedingView({ snapshot, onCommand, setToast }) {
         </div>
         <div className="feeding-progress"><strong>{submitted}/{players.length}</strong><span>jogadores prontos</span></div>
       </div>
+
+      <section className="feeding-mobile-stage panel-card" aria-label="Dica da Isabel">
+        <div><span className="eyebrow">Dica da Isabel</span><strong>{alreadySubmitted ? "Segredo guardado. Agora é só esperar a galera." : "Uma mentira boa parece quase verdadeira."}</strong></div>
+        <Isabel pose={alreadySubmitted ? "feliz" : "fala"} alt={alreadySubmitted ? "Isabel guardando os fatos enviados" : "Isabel ajudando a escrever fatos convincentes"} />
+      </section>
 
       <div className="feeding-layout">
         <section className="feeding-form-wrap panel-card">

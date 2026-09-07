@@ -12,17 +12,20 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
 
 ## 2. Preparar a Vercel
 
-1. Importe o repositório como novo projeto e mantenha a raiz do repositório como **Root Directory**.
+1. Importe o repositório como novo projeto e mantenha a raiz do repositório como **Root Directory**. Não selecione somente `client`, pois o build usa os workspaces e o lockfile da raiz.
 2. A configuração de build já está em `vercel.json`: instala somente o workspace web, executa o build do Vite e publica `client/dist`. O SQLite e o servidor não são enviados para a Vercel.
-3. Cadastre a variável de produção:
+3. Em **Settings → Build and Deployment → Node.js Version**, confirme `24.x`. O `package.json` também exige Node 24, mas vale conferir o log do primeiro build.
+4. Cadastre a variável no ambiente **Production**:
 
    ```text
    VITE_API_URL=https://api.seraquefake.pedrooreis.me
    ```
 
-4. Adicione `seraquefake.pedrooreis.me` em **Settings → Domains** e copie o destino DNS exibido pela Vercel.
-5. No Cloudflare, crie o CNAME/A solicitado pela Vercel com nuvem cinza (**DNS only**). Não coloque o proxy laranja na frente desse host.
-6. Faça um novo deploy depois de salvar a variável. Confirme que `/`, `/superadmin` e uma atualização direta nessas rotas retornam a SPA.
+5. Adicione `seraquefake.pedrooreis.me` em **Settings → Domains** e copie o destino DNS exibido pela Vercel.
+6. No Cloudflare, crie o CNAME/A solicitado pela Vercel com nuvem cinza (**DNS only**). Não coloque o proxy laranja na frente desse host.
+7. Faça um novo deploy depois de salvar a variável. Confirme que `/`, `/superadmin` e uma atualização direta nessas rotas retornam a SPA.
+
+Os valores presentes em `vercel.json` prevalecem sobre overrides conflitantes do painel. A reescrita para `index.html` é a configuração oficial para deep links de uma SPA Vite. Previews da Vercel não terão acesso ao servidor por padrão: para testar um preview contra a API, inclua **a origem exata** daquele preview em `CLIENT_ORIGINS`, separada por vírgula, e reinicie a API. Não use `*` com cookies administrativos.
 
 ## 3. DNS e TLS da API no Cloudflare
 
@@ -39,7 +42,11 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
    sudo chmod 640 /etc/ssl/cloudflare/seraquefake-origin.*
    ```
 
-5. WebSockets já são aceitos pelo proxy Cloudflare; não crie regra de cache para `/socket.io/*` nem `/api/*`.
+5. Em **Network**, confirme **WebSockets: On**. O plano gratuito suporta WebSockets, mas uma atualização da rede Cloudflare pode derrubar uma conexão; o cliente já reconecta e reassume a sala.
+6. Em **SSL/TLS → Edge Certificates**, ative **Always Use HTTPS**. Este manual expõe somente a porta 443 da origem; sem esse redirecionamento no edge, acessos iniciados em HTTP podem falhar.
+7. Em **Cache Rules**, crie uma regra para o host `api.seraquefake.pedrooreis.me` com **Cache eligibility: Bypass cache**. Assim `/api/*`, o polling e o handshake `/socket.io/*` nunca herdam uma futura regra “cache everything”.
+
+O Origin CA é apropriado porque o host `api` permanece com proxy laranja. Um acesso direto ao IP não terá certificado confiável no navegador — isso é esperado e desejável nesta arquitetura.
 
 ## 4. Preparar a VPS
 
@@ -81,6 +88,7 @@ sudo adduser --system --group --home /var/lib/isabel isabel
 sudo install -d -m 750 -o isabel -g isabel /var/lib/isabel /var/backups/isabel
 sudo install -d -m 755 -o "$USER" -g "$USER" /opt/isabel/releases
 sudo install -d -m 750 -o root -g isabel /etc/isabel
+sudo install -d -m 750 -o caddy -g caddy /var/log/caddy
 ```
 
 Firewall mínimo; a porta 3000 nunca deve ficar pública. Libere o SSH antes de ativar o UFW para não perder o acesso:
@@ -102,7 +110,7 @@ while IFS= read -r cidr; do sudo ufw allow proto tcp from "$cidr" to any port 44
 sudo ufw status numbered
 ```
 
-A Cloudflare publica alterações antes de usar novas faixas; revise `https://www.cloudflare.com/ips/` periodicamente. Restrinja também o SSH ao seu IP sempre que houver endereço fixo. O certificado Origin CA não substitui a regra de firewall: ele criptografa o enlace, mas não impede sozinho acesso direto ao IP da origem.
+A Cloudflare publica alterações antes de usar novas faixas; revise `https://www.cloudflare.com/ips/` periodicamente e reaplique a lista quando ela mudar. Restrinja também o SSH ao seu IP sempre que houver endereço fixo. O certificado Origin CA não substitui a regra de firewall: ele criptografa o enlace, mas não impede sozinho acesso direto ao IP da origem. Se **Always Use HTTPS** não puder ser ativado para toda a zona, libere também a porta 80 apenas para os intervalos Cloudflare e deixe o Caddy redirecionar; não abra 80 para a internet inteira.
 
 ## 5. Instalar uma release
 
@@ -149,15 +157,16 @@ sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
 sudo cp deploy/isabel.service /etc/systemd/system/isabel.service
 sudo cp deploy/isabel-backup.service /etc/systemd/system/isabel-backup.service
 sudo cp deploy/isabel-backup.timer /etc/systemd/system/isabel-backup.timer
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemd-analyze verify /etc/systemd/system/isabel.service /etc/systemd/system/isabel-backup.service /etc/systemd/system/isabel-backup.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now caddy isabel.service isabel-backup.timer
+sudo systemctl reload caddy
 ```
 
 Valide a configuração antes de considerar o imóvel entregue:
 
 ```bash
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
 systemctl status --no-pager isabel caddy isabel-backup.timer
 curl --fail http://127.0.0.1:3000/api/healthz
 bash deploy/scripts/smoke-test.sh
@@ -172,11 +181,16 @@ bash deploy/scripts/smoke-test.sh
 - Estado da sala é salvo após voto, alimentação e mudança de fase. Ao reiniciar, prazos vencidos são recalculados.
 - Relatórios permanecem até a revanche e são apagados do servidor depois de 30 minutos com a sala vazia; o último relatório pessoal permanece no navegador do jogador.
 
-Teste restauração antes de depender do backup:
+Teste restauração antes de depender do backup. O procedimento abaixo valida o SHA-256, preserva uma cópia emergencial do banco atual e só então promove o arquivo restaurado:
 
 ```bash
+backup_file=/var/backups/isabel/ARQUIVO.sqlite3
+(cd "$(dirname "$backup_file")" && sha256sum -c "$(basename "$backup_file").sha256")
 sudo systemctl stop isabel
-sudo -u isabel sqlite3 /var/backups/isabel/ARQUIVO.sqlite3 ".backup '/var/lib/isabel/isabel-restaurado.sqlite'"
+sudo cp -a /var/lib/isabel/isabel.sqlite "/var/backups/isabel/pre-restore-$(date -u +%Y-%m-%dT%H-%M-%SZ).sqlite3"
+sudo -u isabel sqlite3 "$backup_file" ".backup '/var/lib/isabel/isabel-restaurado.sqlite'"
+sudo -u isabel sqlite3 /var/lib/isabel/isabel-restaurado.sqlite 'PRAGMA integrity_check;' | grep -qx ok
+sudo rm -f /var/lib/isabel/isabel.sqlite-wal /var/lib/isabel/isabel.sqlite-shm
 sudo -u isabel mv /var/lib/isabel/isabel-restaurado.sqlite /var/lib/isabel/isabel.sqlite
 sudo systemctl start isabel
 curl --fail https://api.seraquefake.pedrooreis.me/api/healthz
@@ -200,6 +214,8 @@ sudo systemctl restart isabel
 
 Mudanças futuras de schema devem vir acompanhadas de migração reversível ou backup obrigatório. O catálogo também pode ser exportado em JSON pelo superadmin antes de cada atualização.
 
+O frontend tem rollback independente: em **Vercel → Deployments**, abra o último deployment conhecido como estável e use **Promote to Production**. Depois valide `/` e `/superadmin`; reverter apenas a SPA não altera o SQLite.
+
 ## 10. Checklist de aceite em produção
 
 - HTTPS da SPA e `/superadmin` sem conteúdo misto.
@@ -215,3 +231,11 @@ Mudanças futuras de schema devem vir acompanhadas de migração reversível ou 
 ## 11. Credenciais que ainda serão necessárias
 
 Para efetivar a publicação, o operador precisa autorizar acesso ao projeto Vercel, à zona DNS/SSL na Cloudflare e ao SSH da VPS. Não cole essas credenciais em arquivos do projeto; prefira sessões autenticadas, chaves SSH e variáveis secretas das plataformas.
+
+## 12. Referências oficiais conferidas
+
+- [Vite como SPA na Vercel](https://vercel.com/docs/frameworks/frontend/vite) e [configuração de build](https://vercel.com/docs/builds/configure-a-build).
+- [Node.js 24 na Vercel](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
+- [Cloudflare Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/), [Origin CA](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/) e [Always Use HTTPS](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/always-use-https/).
+- [WebSockets na Cloudflare](https://developers.cloudflare.com/network/websockets/) e [Cache Rules com bypass](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/).
+- [Reverse proxy e WebSockets no Caddy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy).
