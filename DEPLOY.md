@@ -99,6 +99,9 @@ sudo install -d -m 750 -o isabel -g isabel /var/lib/isabel /var/backups/isabel
 sudo install -d -m 755 -o "$USER" -g "$USER" /opt/isabel/releases
 sudo install -d -m 750 -o root -g isabel /etc/isabel
 sudo install -d -m 750 -o caddy -g caddy /var/log/caddy
+sudo touch /var/log/caddy/isabel-api.log
+sudo chown caddy:caddy /var/log/caddy/isabel-api.log
+sudo chmod 640 /var/log/caddy/isabel-api.log
 ```
 
 Firewall mínimo; a porta 3000 nunca deve ficar pública. Libere o SSH antes de ativar o UFW para não perder o acesso:
@@ -160,6 +163,8 @@ sudo chmod 640 /etc/isabel/isabel.env
 
 Não use aspas no hash do arquivo `EnvironmentFile`. O caractere `$` é aceito literalmente pelo systemd nesse formato.
 
+Mantenha `HOST=127.0.0.1`. Depois de iniciar o serviço, `sudo ss -ltnp | grep ':3000'` deve mostrar `127.0.0.1:3000`, nunca `*:3000` ou `0.0.0.0:3000`.
+
 ## 7. Ativar Caddy, API e backup
 
 ```bash
@@ -167,7 +172,7 @@ sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
 sudo cp deploy/isabel.service /etc/systemd/system/isabel.service
 sudo cp deploy/isabel-backup.service /etc/systemd/system/isabel-backup.service
 sudo cp deploy/isabel-backup.timer /etc/systemd/system/isabel-backup.timer
-sudo caddy validate --config /etc/caddy/Caddyfile
+sudo -u caddy caddy validate --config /etc/caddy/Caddyfile
 sudo systemd-analyze verify /etc/systemd/system/isabel.service /etc/systemd/system/isabel-backup.service /etc/systemd/system/isabel-backup.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now caddy isabel.service isabel-backup.timer

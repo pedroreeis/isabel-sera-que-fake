@@ -4,8 +4,8 @@ import { loadConfig } from './config.js';
 const config = loadConfig();
 const runtime = createApplication({ config });
 
-runtime.httpServer.listen(config.port, () => {
-  console.log(`Isabel pronta na porta ${config.port}`);
+runtime.httpServer.listen(config.port, config.host, () => {
+  console.log(`Isabel pronta em ${config.host}:${config.port}`);
 });
 
 let closing = false;

@@ -20,5 +20,9 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "allowScripts": {
+    "argon2@0.44.0": true,
+    "better-sqlite3@12.11.1": true
   }
 }

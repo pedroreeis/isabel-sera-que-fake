@@ -7,6 +7,7 @@ const serverRoot = path.resolve(here, '..');
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  HOST: z.string().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   CLIENT_ORIGINS: z.string().default('http://localhost:5173'),
   DATABASE_PATH: z.string().default('./data/isabel.sqlite'),
@@ -22,6 +23,7 @@ export function loadConfig(environment = process.env) {
     : path.resolve(serverRoot, parsed.DATABASE_PATH);
   return Object.freeze({
     environment: parsed.NODE_ENV,
+    host: parsed.HOST,
     port: parsed.PORT,
     clientOrigins: parsed.CLIENT_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
     databasePath,
