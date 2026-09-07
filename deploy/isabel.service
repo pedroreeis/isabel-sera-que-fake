@@ -1,0 +1,35 @@
+[Unit]
+Description=Isabel - Sera que e Fake API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=isabel
+Group=isabel
+WorkingDirectory=/opt/isabel/current
+EnvironmentFile=/etc/isabel/isabel.env
+ExecStart=/usr/bin/node server/src/index.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+KillSignal=SIGTERM
+UMask=0077
+LimitNOFILE=8192
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/isabel
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

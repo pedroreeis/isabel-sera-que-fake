@@ -1,0 +1,15 @@
+[Unit]
+Description=Backup diario do SQLite da Isabel
+
+[Service]
+Type=oneshot
+User=isabel
+Group=isabel
+EnvironmentFile=/etc/isabel/isabel.env
+ExecStart=/usr/bin/bash /opt/isabel/current/deploy/scripts/backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/isabel /var/backups/isabel
+PrivateNetwork=true

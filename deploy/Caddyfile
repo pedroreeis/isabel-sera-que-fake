@@ -1,0 +1,28 @@
+api.seraquefake.pedrooreis.me {
+  tls /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/seraquefake-origin.key
+
+  encode zstd gzip
+
+  header {
+    -Server
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  }
+
+  reverse_proxy 127.0.0.1:3000 {
+    # A regra de firewall do guia garante que este cabeçalho só chegue pela Cloudflare.
+    header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+    header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+  }
+
+  log {
+    output file /var/log/caddy/isabel-api.log {
+      roll_size 20MiB
+      roll_keep 7
+      roll_keep_for 168h
+    }
+    format json
+  }
+}

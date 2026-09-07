@@ -1,0 +1,10 @@
+[Unit]
+Description=Agenda o backup diario da Isabel
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 America/Sao_Paulo
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
