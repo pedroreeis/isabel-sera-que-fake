@@ -50,7 +50,7 @@ Atualize a máquina e instale os utilitários básicos:
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y ca-certificates curl git gpg sqlite3 ufw build-essential python3 debian-keyring debian-archive-keyring apt-transport-https
+sudo apt install -y ca-certificates curl git gpg sqlite3 ufw build-essential python3 xz-utils debian-keyring debian-archive-keyring apt-transport-https
 ```
 
 Instale o pacote estável oficial do Caddy para Debian/Ubuntu:
@@ -76,18 +76,20 @@ sudo chmod 640 /etc/ssl/cloudflare/seraquefake-origin.pem /etc/ssl/cloudflare/se
 
 Cole o certificado público completo no arquivo `.pem` e a chave privada completa no arquivo `.key`. Não grave esses conteúdos no repositório e não os envie por chat.
 
-Instale Node.js 24 LTS pelo repositório NodeSource depois de revisar o script baixado:
+Instale o Node.js 24 LTS oficial de forma isolada em `/opt/node24`. Isso evita trocar o `/usr/bin/node` de aplicações preexistentes administradas por PM2. A versão abaixo foi conferida no momento deste guia; ao atualizá-la, baixe novamente o `SHASUMS256.txt` correspondente:
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh
-less /tmp/nodesource_setup.sh
-sudo -E bash /tmp/nodesource_setup.sh
-sudo apt install -y nodejs
-node --version
-npm --version
+cd /tmp
+curl -fsSLO https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-x64.tar.xz
+curl -fsSLO https://nodejs.org/dist/v24.20.0/SHASUMS256.txt
+grep ' node-v24.20.0-linux-x64.tar.xz$' SHASUMS256.txt | sha256sum --check -
+sudo tar -xJf node-v24.20.0-linux-x64.tar.xz -C /opt
+sudo ln -sfn /opt/node-v24.20.0-linux-x64 /opt/node24
+/opt/node24/bin/node --version
+/opt/node24/bin/npm --version
 ```
 
-Interrompa a instalação se `node --version` não começar por `v24.`.
+Interrompa a instalação se a verificação SHA-256 não retornar `OK` ou se `/opt/node24/bin/node --version` não começar por `v24.`. O serviço da Isabel usa explicitamente `/opt/node24/bin/node`; outros projetos continuam na versão que já utilizavam.
 
 Crie o usuário sem privilégios e os diretórios:
 
@@ -128,7 +130,7 @@ Cada atualização ocupa uma pasta própria. Substitua a origem do repositório 
 release_id="$(date -u +%Y%m%d%H%M%S)"
 git clone --depth 1 URL_DO_REPOSITORIO "/opt/isabel/releases/$release_id"
 cd "/opt/isabel/releases/$release_id"
-npm ci --omit=dev --workspace @isabel/server --workspace @isabel/shared
+PATH=/opt/node24/bin:/usr/bin:/bin /opt/node24/bin/npm ci --omit=dev --workspace @isabel/server --workspace @isabel/shared
 sudo chown -R root:isabel "/opt/isabel/releases/$release_id"
 sudo chmod -R u=rwX,g=rX,o= "/opt/isabel/releases/$release_id"
 sudo ln -sfn "/opt/isabel/releases/$release_id" /opt/isabel/current
@@ -143,7 +145,7 @@ Gere o hash Argon2id sem deixar a senha no histórico:
 ```bash
 cd /opt/isabel/current
 read -rsp "Senha do superadmin: " ISABEL_ADMIN_PASSWORD; echo
-ADMIN_PLAIN="$ISABEL_ADMIN_PASSWORD" node -e 'import("argon2").then(async ({default:a}) => console.log(await a.hash(process.env.ADMIN_PLAIN,{type:a.argon2id})))'
+ADMIN_PLAIN="$ISABEL_ADMIN_PASSWORD" /opt/node24/bin/node -e 'import("argon2").then(async ({default:a}) => console.log(await a.hash(process.env.ADMIN_PLAIN,{type:a.argon2id})))'
 unset ISABEL_ADMIN_PASSWORD
 ```
 
