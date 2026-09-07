@@ -13,7 +13,7 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
 ## 2. Preparar a Vercel
 
 1. Importe o repositório como novo projeto e mantenha a raiz do repositório como **Root Directory**. Não selecione somente `client`, pois o build usa os workspaces e o lockfile da raiz.
-2. A configuração de build já está em `vercel.json`: instala somente o workspace web, executa o build do Vite e publica `client/dist`. O SQLite e o servidor não são enviados para a Vercel.
+2. A configuração de build já está em `vercel.json`: instala somente o workspace web, executa `npm run build` e publica `dist`. O comando raiz direciona a saída do Vite para `dist/index.html`; o SQLite e o servidor não são enviados para a Vercel.
 3. Em **Settings → Build and Deployment → Node.js Version**, confirme `24.x`. O `package.json` também exige Node 24, mas vale conferir o log do primeiro build.
 4. Cadastre a variável no ambiente **Production**:
 
@@ -23,7 +23,8 @@ Este manual publica o frontend na Vercel e mantém a autoridade do jogo em uma V
 
 5. Adicione `seraquefake.pedrooreis.me` em **Settings → Domains** e copie o destino DNS exibido pela Vercel.
 6. No Cloudflare, crie o CNAME/A solicitado pela Vercel com nuvem cinza (**DNS only**). Não coloque o proxy laranja na frente desse host.
-7. Faça um novo deploy depois de salvar a variável. Confirme que `/`, `/superadmin` e uma atualização direta nessas rotas retornam a SPA.
+7. Em **Build and Deployment**, deixe **Build Command** e **Output Directory** sem override. Se o painel exigir valores explícitos, use `npm run build` e `dist`, respectivamente.
+8. Faça um novo deploy depois de salvar a variável. Confirme no log a criação de `dist/index.html`; depois valide `/`, `/superadmin` e uma atualização direta nessas rotas.
 
 Os valores presentes em `vercel.json` prevalecem sobre overrides conflitantes do painel. A reescrita para `index.html` é a configuração oficial para deep links de uma SPA Vite. Previews da Vercel não terão acesso ao servidor por padrão: para testar um preview contra a API, inclua **a origem exata** daquele preview em `CLIENT_ORIGINS`, separada por vírgula, e reinicie a API. Não use `*` com cookies administrativos.
 

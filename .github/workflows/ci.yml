@@ -21,3 +21,5 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Confere o artefato esperado pela Vercel
+        run: test -f dist/index.html

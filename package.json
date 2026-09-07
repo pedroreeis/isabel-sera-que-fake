@@ -13,7 +13,7 @@
   },
   "scripts": {
     "dev": "concurrently --kill-others --names WEB,API --prefix-colors magenta,cyan \"npm run dev -w @isabel/web\" \"npm run dev -w @isabel/server\"",
-    "build": "npm run build -w @isabel/web",
+    "build": "npm run build -w @isabel/web -- --outDir ../dist --emptyOutDir",
     "start": "npm run start -w @isabel/server",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
